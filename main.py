@@ -15,6 +15,23 @@ from database import engine, Base, SessionLocal, get_db
 from edkt_models.transformer import EDKTTransformer
 from fastapi.middleware.cors import CORSMiddleware
 
+
+app = FastAPI(title="EDKT API Engine")
+
+# Configure CORS Middleware
+origins = [
+    "http://localhost:3000",
+    "https://*.vercel.app",  # Wildcard support for Vercel preview deployments
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins (Vercel, localhost, etc.)
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly allow OPTIONS for preflight
+    allow_headers=["*"],  # Allows headers like Content-Type, Authorization, X-User-Role
+)
+
 app = FastAPI(title="EDKT API Engine")
 
 app.add_middleware(
