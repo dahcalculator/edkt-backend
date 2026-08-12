@@ -24,14 +24,15 @@ origins = [
     "https://*.vercel.app",  # Wildcard support for Vercel preview deployments
 ]
 
+# 1. Broad CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (Vercel, localhost, etc.)
+    allow_origins=["*"],  # Allows Vercel frontend, localhost, etc.
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly allow OPTIONS for preflight
-    allow_headers=["*"],  # Allows headers like Content-Type, Authorization, X-User-Role
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
-
 app = FastAPI(title="EDKT API Engine")
 
 app.add_middleware(
@@ -525,6 +526,22 @@ def load_local_pool_file(db: Session = Depends(get_db)):
 
 @app.get("/analytics/explainability-matrix")
 def get_explainability_matrix(matric: str, db: Session = Depends(get_db)):
+
+
+# 2. Global Preflight Catch-All (Guarantees OPTIONS 200 OK for any route)
+@app.options("/{full_path:path}")
+async def preflight_handler(full_path: str):
+    return Response(status_code=status.HTTP_200_OK)
+
+# 3. Database Inspection Endpoint
+@app.get("/inspect-db")
+async def inspect_db():
+    # Replace with your actual DB session query logic
+    return {
+        "status": "online",
+        "message": "Database inspection active",
+        "total_questions": 20
+    }
     user = db.query(models.User).filter(models.User.matric_no == matric).first()
     if not user:
         raise HTTPException(status_code=404, detail="Student profile record not found")
