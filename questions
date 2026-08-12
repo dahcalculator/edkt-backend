@@ -1,0 +1,18 @@
+new_q = models.Question(
+    topic_id=topic1.id,  # Link to the appropriate Syllabus ID (e.g., Matrices)
+    content="Find the determinant of a 2x2 matrix where row 1 is [4, 2] and row 2 is [1, 3].",
+    option_a="10",
+    option_b="14",
+    option_c="8",
+    option_d="12",
+    correct_answer="A"
+)
+db.add(new_q)
+db.commit()
+
+
+Save your questions_pool.json array.
+
+Hit the endpoint from a browser/Postman using a POST request to http://localhost:8000/setup/bulk-upload (or build a simple file-picker interface on your dashboard later).
+
+The data maps instantly, updates your SQLite instances, and feeds the adaptive DKT practice pool!

@@ -1,0 +1,182 @@
+[
+  {
+    "topic_name": "Set Theory",
+    "content": "If Set A = {1, 2, 3, 4} and Set B = {3, 4, 5, 6}, what is A ∪ B?",
+    "option_a": "{3, 4}",
+    "option_b": "{1, 2, 3, 4, 5, 6}",
+    "option_c": "{1, 2, 5, 6}",
+    "option_d": "{}",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Set Theory",
+    "content": "What is the number of subsets (power set cardinality) of a set with 4 distinct elements?",
+    "option_a": "8",
+    "option_b": "12",
+    "option_c": "16",
+    "option_d": "32",
+    "correct_answer": "C"
+  },
+  {
+    "topic_name": "Set Theory",
+    "content": "In a class of 50 students, 30 study Mathematics and 25 study Physics. If 10 study both, how many study neither subject?",
+    "option_a": "5",
+    "option_b": "10",
+    "option_c": "15",
+    "option_d": "20",
+    "correct_answer": "A"
+  },
+  {
+    "topic_name": "Indices and Logarithms",
+    "content": "Simplify: 16^(3/4)",
+    "option_a": "4",
+    "option_b": "6",
+    "option_c": "8",
+    "option_d": "12",
+    "correct_answer": "C"
+  },
+  {
+    "topic_name": "Indices and Logarithms",
+    "content": "Solve for x in log base 2 of (x + 3) = 4.",
+    "option_a": "13",
+    "option_b": "11",
+    "option_c": "5",
+    "option_d": "16",
+    "correct_answer": "A"
+  },
+  {
+    "topic_name": "Quadratic Equations",
+    "content": "What are the roots of the quadratic equation x^2 - 5x + 6 = 0?",
+    "option_a": "x = -2, -3",
+    "option_b": "x = 2, 3",
+    "option_c": "x = 1, 6",
+    "option_d": "x = -1, -6",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Quadratic Equations",
+    "content": "Determine the discriminant value for 2x^2 + 4x + 5 = 0.",
+    "option_a": "24",
+    "option_b": "-24",
+    "option_c": "16",
+    "option_d": "-56",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Surds",
+    "content": "Simplify the surd expression: √75 + √12 - √27",
+    "option_a": "4√3",
+    "option_b": "5√3",
+    "option_c": "3√3",
+    "option_d": "6√3",
+    "correct_answer": "A"
+  },
+  {
+    "topic_name": "Surds",
+    "content": "Rationalize the denominator of: 3 / (√5 - 2)",
+    "option_a": "3(√5 + 2)",
+    "option_b": "3(√5 - 2)",
+    "option_c": "√5 + 2",
+    "option_d": "3√5 + 2",
+    "correct_answer": "A"
+  },
+  {
+    "topic_name": "Polynomials",
+    "content": "Find the remainder when P(x) = 2x^3 - 3x^2 + 4x - 5 is divided by (x - 2).",
+    "option_a": "3",
+    "option_b": "7",
+    "option_c": "9",
+    "option_d": "11",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Sequences and Series",
+    "content": "Find the 10th term of the Arithmetic Progression (AP): 3, 7, 11, 15, ...",
+    "option_a": "36",
+    "option_b": "39",
+    "option_c": "40",
+    "option_d": "43",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Sequences and Series",
+    "content": "Calculate the sum to infinity of the Geometric Series: 8, 4, 2, 1, ...",
+    "option_a": "12",
+    "option_b": "14",
+    "option_c": "16",
+    "option_d": "20",
+    "correct_answer": "C"
+  },
+  {
+    "topic_name": "Permutations and Combinations",
+    "content": "In how many ways can a committee of 3 students be selected from 6 candidates?",
+    "option_a": "18",
+    "option_b": "20",
+    "option_c": "60",
+    "option_d": "120",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Binomial Theorem",
+    "content": "What is the third coefficient in the binomial expansion of (x + y)^5?",
+    "option_a": "5",
+    "option_b": "10",
+    "option_c": "15",
+    "option_d": "20",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Matrices",
+    "content": "If Matrix A is of order 3x2 and Matrix B is of order 2x4, what is the dimension of AB?",
+    "option_a": "3x2",
+    "option_b": "2x2",
+    "option_c": "3x4",
+    "option_d": "4x3",
+    "correct_answer": "C"
+  },
+  {
+    "topic_name": "Matrices",
+    "content": "Find the determinant of the 2x2 matrix [[4, 2], [3, 5]].",
+    "option_a": "14",
+    "option_b": "26",
+    "option_c": "11",
+    "option_d": "20",
+    "correct_answer": "A"
+  },
+  {
+    "topic_name": "Complex Numbers",
+    "content": "Evaluate: i^14 (where i = √-1)",
+    "option_a": "1",
+    "option_b": "-1",
+    "option_c": "i",
+    "option_d": "-i",
+    "correct_answer": "B"
+  },
+  {
+    "topic_name": "Complex Numbers",
+    "content": "Calculate the modulus |z| of the complex number z = 3 + 4i.",
+    "option_a": "5",
+    "option_b": "7",
+    "option_c": "25",
+    "option_d": "√7",
+    "correct_answer": "A"
+  },
+  {
+    "topic_name": "Trigonometry",
+    "content": "What is the exact value of sin(120°)?",
+    "option_a": "1/2",
+    "option_b": "-1/2",
+    "option_c": "√3/2",
+    "option_d": "-√3/2",
+    "correct_answer": "C"
+  },
+  {
+    "topic_name": "Trigonometry",
+    "content": "Simplify the fundamental identity: (1 - cos^2 θ) / sin θ",
+    "option_a": "cos θ",
+    "option_b": "sin θ",
+    "option_c": "tan θ",
+    "option_d": "csc θ",
+    "correct_answer": "B"
+  }
+]

@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+gunicorn
+sqlalchemy
+passlib[pbkdf2]
+python-jose
+torch --extra-index-url https://download.pytorch.org/whl/cpu
