@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Header, Re
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
+import gc
 import torch
 import json
 import random
@@ -20,17 +21,20 @@ models.Base.metadata.create_all(bind=engine)
 # 2. Initialize FastAPI App
 app = FastAPI(title="EDKT API Engine")
 
+# Disable PyTorch autograd globally to save RAM
+torch.set_grad_enabled(False)
+
 # 3. Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows Vercel frontend, localhost, etc.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
-# 4. Global CORS/OPTIONS Interceptor (Guarantees preflight requests return 200 OK immediately)
+# 4. Global CORS/OPTIONS Interceptor
 @app.middleware("http")
 async def cors_preflight_middleware(request: Request, call_next):
     if request.method == "OPTIONS":
@@ -43,22 +47,53 @@ async def cors_preflight_middleware(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# 5. Initialize AI Brain Model Architecture
-brain = EDKTTransformer(num_skills=50)
-brain.eval()
+# 5. Global In-Memory Model Cache
+GLOBAL_MODEL = None
+MODEL_PATH = "trained_edkt_model.pth"
 
-# 6. Background Task Retraining Handler
+def get_loaded_model():
+    """Singleton getter to load PyTorch model once into RAM."""
+    global GLOBAL_MODEL
+    if GLOBAL_MODEL is None:
+        GLOBAL_MODEL = EDKTTransformer(num_skills=50)
+        if os.path.exists(MODEL_PATH):
+            try:
+                GLOBAL_MODEL.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
+                print("🧠 EDKT Model loaded successfully into memory cache.")
+            except Exception as e:
+                print(f"⚠️ Warning loading model weights: {e}")
+        GLOBAL_MODEL.eval()
+    return GLOBAL_MODEL
+
+# Force model pre-load on startup
+get_loaded_model()
+
+# 6. Background Task Retraining Handler (Memory Guarded)
 def run_automated_training():
+    global GLOBAL_MODEL
     try:
         print("🤖 Automated System Lifecycle: Commencing PyTorch gradient updating loop...")
-        result = subprocess.run(["python", "train_edkt.py"], capture_output=True, text=True)
+        
+        # Clear Python garbage collector before spawning subprocess
+        gc.collect()
+        
+        result = subprocess.run(
+            ["python", "train_edkt.py"], 
+            capture_output=True, 
+            text=True,
+            env={**os.environ, "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}  # Limit CPU threads to lower memory
+        )
         
         if result.returncode == 0:
-            print("✅ Automated Retraining Complete: 'trained_edkt_model.pth' updated dynamically.")
+            print("✅ Automated Retraining Complete: Updating live model cache...")
+            GLOBAL_MODEL = None  # Invalidate cache so next inference reloads updated weights
+            get_loaded_model()
         else:
             print(f"❌ Automated Retraining Script Error: {result.stderr}")
     except Exception as e:
         print(f"⚠️ Failed to kick off automated training execution: {str(e)}")
+    finally:
+        gc.collect()
 
 # 7. Automatic Admin Seeding on Startup
 def seed_admin_account():
@@ -201,62 +236,6 @@ def load_local_pool_file(db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/setup/bulk-upload-direct")
-def bulk_upload_questions_direct(
-    questions_data: List[Dict[str, Any]], 
-    db: Session = Depends(get_db),
-    user_role: str = Header(default="student", alias="X-User-Role")
-):
-    if user_role != "admin":
-        raise HTTPException(status_code=403, detail="Access Denied: Course Administrator privileges required.")
-
-    try:
-        added_count = 0
-        skipped_count = 0
-
-        for item in questions_data:
-            content = item.get("content")
-            topic_name = item.get("topic_name", "General Mathematics")
-            
-            if not content:
-                continue
-
-            topic = db.query(models.Syllabus).filter(models.Syllabus.topic_name == topic_name).first()
-            if not topic:
-                topic = models.Syllabus(topic_name=topic_name)
-                db.add(topic)
-                db.commit()
-                db.refresh(topic)
-
-            duplicate_check = db.query(models.Question).filter(models.Question.content == content).first()
-            if duplicate_check:
-                skipped_count += 1
-                continue
-
-            new_question = models.Question(
-                topic_id=topic.id,
-                content=content,
-                option_a=item.get("option_a", ""),
-                option_b=item.get("option_b", ""),
-                option_c=item.get("option_c", ""),
-                option_d=item.get("option_d", ""),
-                correct_answer=item.get("correct_answer", "A")
-            )
-            db.add(new_question)
-            added_count += 1
-
-        db.commit()
-        return {
-            "status": "success",
-            "message": f"Ingested {added_count} new questions.",
-            "count": added_count,
-            "skipped": skipped_count
-        }
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Data stream processing failed: {str(e)}")
-
 
 @app.get("/quiz/next-question")
 def get_adaptive_question(matric: str = None, exclude: str = "", db: Session = Depends(get_db)):
@@ -287,8 +266,7 @@ def get_adaptive_question(matric: str = None, exclude: str = "", db: Session = D
 
     logs = db.query(models.InteractionLog).filter(models.InteractionLog.user_id == user.id).all()
 
-    model_path = "trained_edkt_model.pth"
-    if not os.path.exists(model_path) or len(logs) < 2:
+    if len(logs) < 2:
         return random.choice(candidate_pool)
 
     try:
@@ -299,13 +277,11 @@ def get_adaptive_question(matric: str = None, exclude: str = "", db: Session = D
         skills_tensor = torch.LongTensor([[s % num_skills for s in skills_seq]])
         interactions_tensor = torch.LongTensor([[(s % num_skills) + num_skills for s in interactions_seq]])
         
-        model = EDKTTransformer(num_skills=num_skills)
-        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-        model.eval()
+        # Reuse in-memory PyTorch instance
+        model = get_loaded_model()
         
-        with torch.no_grad():
-            predictions = model(skills_tensor, interactions_tensor)
-            last_pred = predictions[0, -1, 0].item()
+        predictions = model(skills_tensor, interactions_tensor)
+        last_pred = predictions[0, -1, 0].item()
             
         target_question = None
         if last_pred < 0.60 and len(logs) > 0:
@@ -424,7 +400,6 @@ def get_explainability_matrix(matric: str, db: Session = Depends(get_db)):
     if len(logs) < 2:
         return {"matrix_data": [], "timeline_labels": [], "status": "Insufficient logs for correlation mapping"}
 
-    model_weight_path = "trained_edkt_model.pth"
     recent_logs = logs[-6:]
     
     labels = []
@@ -435,37 +410,32 @@ def get_explainability_matrix(matric: str, db: Session = Depends(get_db)):
 
     matrix_grid = []
     
-    if os.path.exists(model_weight_path):
-        try:
-            TOTAL_QUESTIONS_POOL = 50
-            skills_seq = [log.question_id for log in recent_logs]
-            interactions_seq = [log.question_id + (log.is_correct * TOTAL_QUESTIONS_POOL) for log in recent_logs]
-            
-            skills_tensor = torch.LongTensor([skills_seq])
-            interactions_tensor = torch.LongTensor([interactions_seq])
-            
-            model = EDKTTransformer(num_skills=TOTAL_QUESTIONS_POOL)
-            model.load_state_dict(torch.load(model_weight_path, map_location=torch.device('cpu')))
-            model.eval()
-            
-            with torch.no_grad():
-                _ = model(skills_tensor, interactions_tensor)
-            
-            for i in range(len(recent_logs)):
-                for j in range(len(recent_logs)):
-                    base_attn = 0.76 if recent_logs[i].is_correct == recent_logs[j].is_correct else 0.18
-                    if i == j: base_attn = 1.0
-                    
-                    matrix_grid.append({
-                        "row": i,
-                        "col": j,
-                        "weight": round(base_attn, 2)
-                    })
-            
-            return {"matrix_data": matrix_grid, "timeline_labels": labels, "status": "Active model weights extracted"}
-            
-        except Exception as e:
-            print(f"Attention Extraction Failure: {e}")
+    try:
+        TOTAL_QUESTIONS_POOL = 50
+        skills_seq = [log.question_id for log in recent_logs]
+        interactions_seq = [log.question_id + (log.is_correct * TOTAL_QUESTIONS_POOL) for log in recent_logs]
+        
+        skills_tensor = torch.LongTensor([skills_seq])
+        interactions_tensor = torch.LongTensor([interactions_seq])
+        
+        model = get_loaded_model()
+        _ = model(skills_tensor, interactions_tensor)
+        
+        for i in range(len(recent_logs)):
+            for j in range(len(recent_logs)):
+                base_attn = 0.76 if recent_logs[i].is_correct == recent_logs[j].is_correct else 0.18
+                if i == j: base_attn = 1.0
+                
+                matrix_grid.append({
+                    "row": i,
+                    "col": j,
+                    "weight": round(base_attn, 2)
+                })
+        
+        return {"matrix_data": matrix_grid, "timeline_labels": labels, "status": "Active model weights extracted"}
+        
+    except Exception as e:
+        print(f"Attention Extraction Failure: {e}")
             
     for i in range(len(recent_logs)):
         for j in range(len(recent_logs)):
