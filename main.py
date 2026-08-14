@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 import os
 import gc
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import json
 import random
-import subprocess
 from typing import List, Dict, Any
 from passlib.hash import pbkdf2_sha256
 
@@ -20,9 +21,6 @@ models.Base.metadata.create_all(bind=engine)
 
 # 2. Initialize FastAPI App
 app = FastAPI(title="EDKT API Engine")
-
-# Disable PyTorch autograd globally to save RAM
-torch.set_grad_enabled(False)
 
 # 3. Configure CORS Middleware
 app.add_middleware(
@@ -47,12 +45,12 @@ async def cors_preflight_middleware(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# 5. Global In-Memory Model Cache
+# 5. Global In-Memory Model Cache & Singleton Loader
 GLOBAL_MODEL = None
 MODEL_PATH = "trained_edkt_model.pth"
 
 def get_loaded_model():
-    """Singleton getter to load PyTorch model once into RAM."""
+    """Singleton getter to load PyTorch model once into RAM (~150MB total)."""
     global GLOBAL_MODEL
     if GLOBAL_MODEL is None:
         GLOBAL_MODEL = EDKTTransformer(num_skills=50)
@@ -68,32 +66,53 @@ def get_loaded_model():
 # Force model pre-load on startup
 get_loaded_model()
 
-# 6. Background Task Retraining Handler (Memory Guarded)
+
+# 6. In-Process Lightweight Retraining Handler (Zero Subprocess / Zero Double Imports)
 def run_automated_training():
-    global GLOBAL_MODEL
+    """In-memory gradient update pass on fresh user interactions."""
+    db = SessionLocal()
     try:
-        print("🤖 Automated System Lifecycle: Commencing PyTorch gradient updating loop...")
+        print("🤖 Automated System Lifecycle: Performing in-memory gradient update...")
+        model = get_loaded_model()
+        model.train()  # Enable gradient computation temporarily
+
+        # Fetch last 30 interaction logs across users
+        recent_logs = db.query(models.InteractionLog).order_by(models.InteractionLog.id.desc()).limit(30).all()
+        if len(recent_logs) < 3:
+            model.eval()
+            return
+
+        num_skills = 50
+        skills_seq = [log.question_id for log in recent_logs]
+        interactions_seq = [log.question_id + (log.is_correct * num_skills) for log in recent_logs]
+
+        skills_tensor = torch.LongTensor([[s % num_skills for s in skills_seq]])
+        interactions_tensor = torch.LongTensor([[(s % num_skills) + num_skills for s in interactions_seq]])
+        targets_tensor = torch.FloatTensor([[log.is_correct for log in recent_logs]])
+
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        criterion = nn.BCELoss()
+
+        # Single lightweight backprop step
+        optimizer.zero_grad()
+        predictions = model(skills_tensor, interactions_tensor)
         
-        # Clear Python garbage collector before spawning subprocess
-        gc.collect()
-        
-        result = subprocess.run(
-            ["python", "train_edkt.py"], 
-            capture_output=True, 
-            text=True,
-            env={**os.environ, "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}  # Limit CPU threads to lower memory
-        )
-        
-        if result.returncode == 0:
-            print("✅ Automated Retraining Complete: Updating live model cache...")
-            GLOBAL_MODEL = None  # Invalidate cache so next inference reloads updated weights
-            get_loaded_model()
-        else:
-            print(f"❌ Automated Retraining Script Error: {result.stderr}")
+        # Flatten for loss calculation
+        loss = criterion(predictions.squeeze(-1), targets_tensor)
+        loss.backward()
+        optimizer.step()
+
+        # Save updated weights and return to eval mode
+        torch.save(model.state_dict(), MODEL_PATH)
+        model.eval()
+        print(f"✅ In-Memory Training Complete. Current Loss: {loss.item():.4f}")
+
     except Exception as e:
-        print(f"⚠️ Failed to kick off automated training execution: {str(e)}")
+        print(f"⚠️ In-memory training update note: {str(e)}")
     finally:
+        db.close()
         gc.collect()
+
 
 # 7. Automatic Admin Seeding on Startup
 def seed_admin_account():
@@ -277,11 +296,11 @@ def get_adaptive_question(matric: str = None, exclude: str = "", db: Session = D
         skills_tensor = torch.LongTensor([[s % num_skills for s in skills_seq]])
         interactions_tensor = torch.LongTensor([[(s % num_skills) + num_skills for s in interactions_seq]])
         
-        # Reuse in-memory PyTorch instance
         model = get_loaded_model()
         
-        predictions = model(skills_tensor, interactions_tensor)
-        last_pred = predictions[0, -1, 0].item()
+        with torch.no_grad():
+            predictions = model(skills_tensor, interactions_tensor)
+            last_pred = predictions[0, -1, 0].item()
             
         target_question = None
         if last_pred < 0.60 and len(logs) > 0:
@@ -419,7 +438,9 @@ def get_explainability_matrix(matric: str, db: Session = Depends(get_db)):
         interactions_tensor = torch.LongTensor([interactions_seq])
         
         model = get_loaded_model()
-        _ = model(skills_tensor, interactions_tensor)
+        
+        with torch.no_grad():
+            _ = model(skills_tensor, interactions_tensor)
         
         for i in range(len(recent_logs)):
             for j in range(len(recent_logs)):
